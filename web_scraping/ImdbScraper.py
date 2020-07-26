@@ -256,8 +256,8 @@ class ImdbScraper(BaseScraper):
             
                 if (dflen == self.filelength):
                     #Write the dataframe to file
-                    filename = f"imdb_reviews_from_{str(reviewid_start)}_to_{str(review_id)}"
-                    if(self.write_s3(filename,review_df,"groa")):
+                    filename = f"imdb_reviews_from_{str(reviewid_start)}_to_{str(review_id)}.csv"
+                    if(self.write_s3(filename,review_df)):
                     #review_df.to_csv(filename,index=False)
                         review_df = pd.DataFrame(columns=df_columns)
                         dflen = len(review_df)
@@ -269,8 +269,9 @@ class ImdbScraper(BaseScraper):
                 broken.append(number)
                 continue
         #Write the dataframe to file
-        filename = f"imdb_scraped_reviews_from_{str(reviewid_start)}_to_{str(review_id)}.csv"
-        review_df.to_csv(filename,index=False)
+        filename = f"imdb_scraped_reviews_from_{str(reviewid_start).rjust(7,'0')}_to_{str(review_id)}.csv"
+        self.write_s3(filename,review_df)
+        #review_df.to_csv(filename,index=False)
         
         # total time it took to scrape each review
         t3 = time.perf_counter()

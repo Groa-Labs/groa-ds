@@ -4,12 +4,14 @@ import re
 import sys
 from datetime import timedelta, datetime
 import time
-
+import boto3
 from bs4 import BeautifulSoup # 4.8.2
 import pandas as pd # 0.25.0
 import psycopg2 # 2.8.4
 from psycopg2.extras import execute_batch
+import uuid
 import requests # 2.22.0
+import traceback
 # python 3.7.5
 
 class BaseScraper:
@@ -24,22 +26,22 @@ class BaseScraper:
     and FILENAME.
     """
 
-    def __init__(self, start, end, max_iter, ids=[]):
+    def __init__(self, start, end, filelength):
 
         self.start = start
         self.end = end + 1
         self.current_ids = []
-        self.all_ids = ids
+        #self.all_ids = ids
         self.range = 0
         self.pickup = 0
-        self.max_iter_count = max_iter
+        self.filelength = filelength
         self.scraper_instance = str(randint(2**31, 2**32))
-        self.database = os.getenv("DB_NAME")
-        self.user = os.getenv("DB_USER")
-        self.password = os.getenv("DB_PASSWORD")
-        self.host = os.getenv("HOST")
-        self.port = os.getenv("PORT")
-        self.filename = os.getenv("FILENAME")
+        # self.database = os.getenv("DB_NAME")
+        # self.user = os.getenv("DB_USER")
+        # self.password = os.getenv("DB_PASSWORD")
+        # self.host = os.getenv("HOST")
+        # self.port = os.getenv("PORT")
+        # self.filename = os.getenv("FILENAME")
 
     def connect_to_database(self):
         """
@@ -83,7 +85,7 @@ class BaseScraper:
             # lets the class know the range of ID's its grabbing at a time
             if self.start > self.end:
                 raise ValueError("The start position needs to be \
-    less than the end position")
+                                        less than the end position")
             self.range = abs(self.end - self.start)
 
             return id_list
@@ -246,3 +248,20 @@ class BaseScraper:
             curs.execute(query)
             self.ids = curs.fetchall()
             return self.ids
+     
+    
+    def write_s3(self,filename,df,awsprofile):
+        session = boto3.Session(profile_name=awsprofile)
+        
+        s3_resource = session.client('s3')
+        s3_bucket = "groa-reviews-scraped"
+        s3_filename = '_'.join([str(uuid.uuid4().hex[:4]), filename])
+        df.to_csv(s3_filename,index=False)
+        try:
+            s3_resource.upload_file(s3_filename, s3_bucket,s3_filename)
+            return True
+        except Exception as e:
+            print(e)
+            traceback.print_exc()
+
+            return False

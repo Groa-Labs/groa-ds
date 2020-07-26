@@ -36,12 +36,15 @@ class BaseScraper:
         self.pickup = 0
         self.filelength = filelength
         self.scraper_instance = str(randint(2**31, 2**32))
-        # self.database = os.getenv("DB_NAME")
-        # self.user = os.getenv("DB_USER")
-        # self.password = os.getenv("DB_PASSWORD")
-        # self.host = os.getenv("HOST")
-        # self.port = os.getenv("PORT")
-        # self.filename = os.getenv("FILENAME")
+        self.database = os.getenv("DB_NAME")
+        self.user = os.getenv("DB_USER")
+        self.password = os.getenv("DB_PASSWORD")
+        self.host = os.getenv("HOST")
+        self.port = os.getenv("PORT")
+        self.aws_access_key=os.getenv("ACCESS_KEY")
+        self.aws_secret_key=os.getenv("SECRET_KEY")
+        self.aws_s3_bucket=os.getenv("S3_NAME")
+        #self.filename = os.getenv("FILENAME")
 
     def connect_to_database(self):
         """
@@ -250,15 +253,13 @@ class BaseScraper:
             return self.ids
      
     
-    def write_s3(self,filename,df,awsprofile):
-        session = boto3.Session(profile_name=awsprofile)
+    def write_s3(self,filename,df):
         
-        s3_resource = session.client('s3')
-        s3_bucket = "groa-reviews-scraped"
+        s3_resource = boto3.client('s3',aws_access_key_id=self.aws_access_key,aws_secret_access_key=self.aws_secret_key)
         s3_filename = '_'.join([str(uuid.uuid4().hex[:4]), filename])
         df.to_csv(s3_filename,index=False)
         try:
-            s3_resource.upload_file(s3_filename, s3_bucket,s3_filename)
+            s3_resource.upload_file(s3_filename, self.aws_s3_bucket,s3_filename)
             return True
         except Exception as e:
             print(e)

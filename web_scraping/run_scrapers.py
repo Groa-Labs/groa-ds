@@ -16,20 +16,20 @@ def checker(str):
     return var
 
 if __name__ == "__main__":
-    dotenv.load_dotenv()
+    #dotenv.load_dotenv()
 
     start = int(input("Start at which row? "))
     end = int(input("End at which row? (Inclusive)"))
     if start > end:
         raise ValueError("The starting position needs to be less than or \
-equal to the end position.")
-    max_iter = int(input("Maximum iterations? "))
-    if max_iter < 1:
-        raise ValueError("Maximum iterations must be positive.")
-
-    imdb = ImdbScraper(start, end, max_iter)
-    letterbox = LetterboxScraper(start, end, max_iter)
-    finder = FinderScraper(start, end, max_iter)
+                            equal to the end position.")
+    # max_iter = int(input("Maximum iterations? "))
+    # if max_iter < 1:
+    #     raise ValueError("Maximum iterations must be positive.")
+    rows_in_file = int(input("How many lines per file"))
+    imdb = ImdbScraper(start, end, rows_in_file)
+    letterbox = LetterboxScraper(start, end, rows_in_file)
+    finder = FinderScraper(start, end, rows_in_file)
 
     website = checker("Are you scraping IMDB?")
     if website == "y" or website == "yes":
@@ -38,7 +38,7 @@ in the database?")
         if update == "y" or update == "yes":
             imdb.update()
         elif update == "n" or update == "no":
-            imdb.scrape()
+            imdb.scrape_by_reviewId()
     elif website == "n" or website == "no":
         website2 = checker("Are you scraping Letterboxd?")
         if website2 == "y" or website2 == "yes":

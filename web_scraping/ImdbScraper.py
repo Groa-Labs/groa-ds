@@ -9,6 +9,9 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from psycopg2.extras import execute_batch
 import numpy as np
+import traceback
+import json
+import boto3
 
 from BaseScraper import BaseScraper
 
@@ -78,7 +81,7 @@ class ImdbScraper(BaseScraper):
                         response = requests.get(url_reviews)
                         if response.status_code != 200:
                             print(f"call to {url_reviews} failed with status \
-code {response.status_code}!")
+                                                code {response.status_code}!")
                             continue
                 soup = BeautifulSoup(response.text, 'html.parser')
                 items = soup.find_all(class_='lister-item-content')
@@ -176,6 +179,103 @@ code {response.status_code}!")
         t3 = time.perf_counter()
         total = t3 - t
         print(f"Scraped {count + 1} movies in {round(total,2)} seconds")
+
+        print('All done!\n')
+        print("The following IDs were not scraped succcessfully:")
+        self.show(broken)
+
+    def scrape_by_reviewId(self):
+        """
+        Scrapes imbd.com for user reviews based on reviewid Cound.
+
+        create_log, make_dataframe, and insert_rows are intended to be
+        used inside this function. Takes in the id of the review in
+        "rwxxxxxxx" format
+        """
+        
+
+        t = time.perf_counter()
+        iteration_counter = 0
+        broken = []
+        df_columns = ["review_id","movie_id","review_date","user_rating","helpful_num",
+                        "helpful_denom","user_name","review_text","review_title","review_site"]
+        review_df = pd.DataFrame(columns=df_columns)
+        dflen = len(review_df)
+        reviewid_start = self.start
+        for count, number in enumerate(range(self.start,self.end)):
+            try:
+                t1 = time.perf_counter()
+                Nan_count = 0
+                review_count = 0
+                movie_title = ''
+                #review id should be right justified for 7 digits
+                review_id = str(number).rjust(7,'0')
+                # self.locate(id)
+                review_url = f"https://www.imdb.com/review/rw{review_id}/?ref_=tt_urv"
+                print(review_url)
+                time.sleep(randint(3, 6))
+                response = requests.get(review_url)
+                if response.status_code != 200:
+                        response = requests.get(review_url)
+                        if response.status_code != 200:
+                            print(f"call to {review_url} failed with status \
+                                                code {response.status_code}!")
+                            continue
+                soup = BeautifulSoup(response.text, 'html.parser')
+                reviewer = soup.find(class_='subpage_title_block')
+                user_name = reviewer.find(class_="parent").get_text()
+                items = soup.find_all(class_='lister-item-content')
+                
+                # populate lists
+                for item in items:
+                    review_count += 1
+                    review_text = (item.find(class_="text show-more__control").get_text())
+                    review_title = (item.find(class_="title").get_text())
+                    #user_name = (item.find(class_="parent").get_text())
+                    review_date = (item.find(class_="review-date").get_text())
+                    movie_id = item.find(class_="lister-item-header").find('a').get('href')
+                    movie_id = movie_id.replace("/","").replace("titlett","")
+                    try:
+                        user_rating = (item.find(class_="rating-other-user-rating").find('span').text)
+                    except:
+                        user_rating = ''
+                    found_useful = item.find(class_="actions text-muted").get_text()
+                    found_useful = found_useful.replace(",", "")
+                    usefuls = [int(i) for i in found_useful.split() if i.isdigit()]
+                    helpful_num = (usefuls[0])
+                    helpful_denom =(usefuls[1])
+                    print([review_id,movie_id,review_date,user_rating,helpful_num,
+                        helpful_denom,user_name,review_text,review_title,"IMDB"])
+                    #add to the dataframe
+                    review_df.loc[dflen] = [review_id,movie_id,review_date,user_rating,helpful_num,
+                        helpful_denom,user_name,review_text,review_title,"IMDB"]
+                    dflen +=1
+                t2 = time.perf_counter()
+                finish = t2-t1
+
+            
+                if (dflen == self.filelength):
+                    #Write the dataframe to file
+                    filename = f"imdb_reviews_from_{str(reviewid_start)}_to_{str(review_id)}"
+                    if(self.write_s3(filename,review_df,"groa")):
+                    #review_df.to_csv(filename,index=False)
+                        review_df = pd.DataFrame(columns=df_columns)
+                        dflen = len(review_df)
+                        reviewid_start = number+1
+            # catches any error and lets you know which ID was the last one scraped
+            except Exception as e:
+                print(e)
+                traceback.print_exc()
+                broken.append(number)
+                continue
+        #Write the dataframe to file
+        filename = f"imdb_scraped_reviews_from_{str(reviewid_start)}_to_{str(review_id)}.csv"
+        review_df.to_csv(filename,index=False)
+        
+        # total time it took to scrape each review
+        t3 = time.perf_counter()
+        total = t3 - t
+        print(f"Scraped {count + 1} review in {round(total,2)} seconds")
 
         print('All done!\n')
         print("The following IDs were not scraped succcessfully:")
@@ -379,14 +479,14 @@ code {response.status_code}!")
                 url_short = f'http://www.imdb.com/title/{id}/'
                 # sort the reviews by date
                 url_reviews = url_short + 'reviews?sort=submissionDate&dir=\
-desc&ratingFilter=0'
+                                            desc&ratingFilter=0'
                 time.sleep(randint(3, 6))
                 response = requests.get(url_reviews)
                 if response.status_code != 200:
                         response = requests.get(url_reviews)
                         if response.status_code != 200:
                             print(f"call to {url_reviews} failed with status \
-code {response.status_code}!")
+                                                    code {response.status_code}!")
                             continue
                 soup = BeautifulSoup(response.text, 'html.parser')
                 # items holds all the HTML for the webpage
@@ -420,7 +520,7 @@ code {response.status_code}!")
                         # check whether or not the review ID is in the DB
                         if review_id not in review_ids:
                             print(f"Updating {id} at index \
-{unique_movie_ids.index(num)} in the database for review ID {review_id}")
+                                {unique_movie_ids.index(num)} in the database for review ID {review_id}")
                             review_count += 1
 
                             # populate lists
